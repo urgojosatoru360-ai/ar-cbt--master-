@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link rel="manifest" href="manifest.json">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AR CBT MASTER</title>
+
+<!-- PDF and DOCX parsers - client side -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.7.0/mammoth.browser.min.js"></script>
 
 <style>
 body{margin:0;font-family:Arial;background:#0b1220;color:white;}
@@ -109,13 +112,13 @@ input,textarea,select{width:100%;padding:10px;margin:5px 0;border-radius:6px;bor
 <button class="back" onclick="go('home')">← Back</button>
 <h2>Admin Panel</h2>
 
-<h3>PDF/TXT Extraction</h3>
-<input type="file" id="pdfFile" accept=".txt,.pdf">
+<h3>PDF/TXT/DOCX Extraction</h3>
+<input type="file" id="pdfFile" accept=".txt,.pdf,.docx">
 <button onclick="extractFile()">Extract Text</button>
 <pre id="pdfOutput" style="max-height:200px;overflow:auto;"></pre>
 
 <h3>Upload Notes to Generate Questions</h3>
-<input type="file" id="notesFile" accept=".txt">
+<input type="file" id="notesFile" accept=".txt,.pdf,.docx">
 <button onclick="uploadNotes()">Upload Notes & Generate 20 Qs</button>
 <select id="notesSubject"></select>
 <pre id="notesOutput"></pre>
@@ -378,37 +381,62 @@ function checkAdmin(){
   else alert("Wrong password");
 }
 
-/* PDF/TXT EXTRACTION */
-function extractFile(){
+/* FILE EXTRACTION - CLIENT SIDE */
+async function extractFile(){
 let f=pdfFile.files[0];
 if(!f) return alert("Select a file");
 
-if(f.type==="text/plain"){
-  let reader = new FileReader();
-  reader.onload = e => {
-    extractedNotes = e.target.result;
-    pdfOutput.innerText = extractedNotes.slice(0,1000);
-  };
-  reader.readAsText(f);
-}else{
-  pdfOutput.innerText="PDF extraction requires a backend. Upload.txt files for now.";
+try{
+  let text = await extractTextFromFile(f);
+  extractedNotes = text;
+  pdfOutput.innerText = text.slice(0,2000);
+}catch(e){
+  pdfOutput.innerText="Error extracting file: " + e.message;
 }
+}
+
+async function uploadNotes(){
+let f=notesFile.files[0];
+if(!f) return alert("Select a file");
+let sub=notesSubject.value;
+
+try{
+  let text = await extractTextFromFile(f);
+  extractedNotes = text;
+  generateQuestionsFromNotes(sub, text);
+}catch(e){
+  notesOutput.innerText="Error: " + e.message;
+}
+
+async function extractTextFromFile(file){
+  const type = file.name.split('.').pop().toLowerCase();
+
+  if(type === 'txt'){
+    return await file.text();
+  }
+
+  if(type === 'pdf'){
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    let text = '';
+    for(let i=1; i<=pdf.numPages; i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(i=>i.str).join(' ') + '\n';
+    }
+    return text;
+  }
+
+  if(type === 'docx'){
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({arrayBuffer});
+    return result.value;
+  }
+
+  throw new Error('Unsupported file type. Use txt, pdf, or docx');
 }
 
 /* UPLOAD NOTES & GENERATE QUESTIONS */
-function uploadNotes(){
-let f=notesFile.files[0];
-if(!f) return alert("Select a.txt file");
-let sub=notesSubject.value;
-
-let reader = new FileReader();
-reader.onload = e => {
-  extractedNotes = e.target.result;
-  generateQuestionsFromNotes(sub, extractedNotes);
-};
-reader.readAsText(f);
-}
-
 function generateQuestionsFromNotes(sub, text){
 let sentences = text.split(/[.!?]/).filter(s=>s.trim().length>20);
 let questions=[];
@@ -534,4 +562,4 @@ function showQuestionCounts(){
 }
 </script>
 </body>
-  </html>
+ </html>
