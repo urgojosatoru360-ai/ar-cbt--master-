@@ -614,47 +614,47 @@ function saveUpdate(){
   showUpdateStatus("Code ready. Click Apply Update.", "success");
 }
 
-function applyUpdate(function applyUpdate(){
-  let code = http://codeBox.value.trim();
+function applyUpdate(){
+  let code = codeBox.value.trim();
   if(!code) return showUpdateStatus("No code to apply.", "error");
 
-  let old = http://document.getElementById(UPDATE_SCRIPT_ID);
-  if(old) http://old.remove();
+  let old = document.getElementById(UPDATE_SCRIPT_ID);
+  if(old) old.remove();
 
-  let s = http://document.createElement("script");
-  http://s.id = UPDATE_SCRIPT_ID;
-  http://s.textContent = code;
-  http://document.body.appendChild(s);
+  let s = document.createElement("script");
+  s.id = UPDATE_SCRIPT_ID;
+  s.textContent = code;
+  document.body.appendChild(s);
 
   showUpdateStatus("Update applied!", "success");
 }
 
 function clearUpdate(){
-  http://codeBox.value = "";
+  codeBox.value = "";
   showUpdateStatus("Textarea cleared.", "info");
 }
 
 function loadSavedUpdate(){}
 
 function showUpdateStatus(msg, type){
-http://updateStatus.style.display = "block";
-http://updateStatus.innerText = msg;
-http://updateStatus.style.background = type==="error"?"#dc2626":type==="success"?"#16a34a":"#2563eb";
+updateStatus.style.display = "block";
+updateStatus.innerText = msg;
+updateStatus.style.background = type==="error"?"#dc2626":type==="success"?"#16a34a":"#2563eb";
 setTimeout(()=>{updateStatus.style.display="none";}, 3000);
 }
 
-/_ QUESTION BANK STATUS _/
+/* QUESTION BANK STATUS */
 function showQuestionCounts(){
-  let box = http://document.getElementById("questionCounts");
+  let box = document.getElementById("questionCounts");
   if(!box) return;
 
   let html = "";
-  http://subjects.forEach(sub => {
-    let count = examData?.questions?.length || 0;
+  subjects.forEach(sub => {
+    let count = examData[sub]?.questions?.length || 0;
     html += `<div class="subject"><span>${sub}</span><span>${count} Qs</span></div>`;
   });
-  http://box.innerHTML = html;
+  box.innerHTML = html;
 }
 </script>
 </body>
-</html>[sub]
+</html>
