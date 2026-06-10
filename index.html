@@ -108,15 +108,15 @@ input,textarea,select{width:100%;padding:10px;margin:5px 0;border-radius:6px;bor
 <button class="back" onclick="go('home')">← Back</button>
 <h2>Admin Panel</h2>
 
-<h3>PDF/TXT/DOCX Extraction</h3>
-<input type="file" id="pdfFile" accept=".txt,.pdf,.docx">
-<button id="extractBtn" onclick="extractAndGenerate()">Extract Text and Generate Questions</button>
+<h3>PDF/TXT Extraction</h3>
+<input type="file" id="pdfFile" accept=".txt,.pdf">
+<button onclick="extractFile()">Extract Text</button>
 <pre id="pdfOutput" style="max-height:200px;overflow:auto;"></pre>
 
 <h3>Upload Notes to Generate Questions</h3>
-<input type="file" id="notesFile" accept=".txt,.pdf,.docx">
-<select id="notesSubject"></select>
+<input type="file" id="notesFile" accept=".txt">
 <button onclick="uploadNotes()">Upload Notes & Generate 20 Qs</button>
+<select id="notesSubject"></select>
 <pre id="notesOutput"></pre>
 
 <h3>Question Generator</h3>
@@ -132,7 +132,7 @@ input,textarea,select{width:100%;padding:10px;margin:5px 0;border-radius:6px;bor
 <button onclick="clearUpdate()">Clear Update</button>
 <div id="updateStatus" class="box" style="display:none;"></div>
 
-<h3>Question Bank Status</h3>
+<h3>7. Question Bank Status</h3>
 <button onclick="showQuestionCounts()">Refresh Counts</button>
 <div id="questionCounts" class="box"></div>
 </div>
@@ -174,22 +174,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
 initSubjects();
 subjects.forEach(sub => generateStaticQuestions(sub, 20));
 refreshSuggestions();
-loadLibraries();
+loadSavedUpdate();
 });
-
-/* LOAD PDF.JS AND MAMMOTH */
-function loadLibraries(){
-if(!window.pdfjsLib){
-  let s1 = document.createElement('script');
-  s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-  document.head.appendChild(s1);
-}
-if(!window.mammoth){
-  let s2 = document.createElement('script');
-  s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.7.0/mammoth.browser.min.js';
-  document.head.appendChild(s2);
-}
-}
 
 /* LESSON */
 function openLesson(){go("lesson");}
@@ -204,9 +190,11 @@ function startLesson(){
     Government: "Government studies how power is organized and exercised in a state.",
     CRK: "CRK studies the Bible, Christian doctrines, and moral teachings.",
     Economics: "Economics studies production, distribution, and consumption of goods.",
-    Geography: "Geography studies the earth, landforms, climate, and human activities."
+    Geography: "Geography studies the earth, landforms, climate, and human activities.",
+    Literature: "Literature studies novels, drama, and poetry.",
+    Accounting: "Accounting records and analyzes financial transactions."
   };
-  lessonOutput.innerHTML = lessons[sub] || `${sub} - Upload notes to generate lessons.`;
+  lessonOutput.innerHTML = lessons[sub] || `${sub} - Notes will appear here after you upload notes.`;
 }
 
 /* AI TUTOR */
@@ -389,186 +377,72 @@ function checkAdmin(){
   else alert("Wrong password");
 }
 
-/* EXTRACT AND GENERATE IN 1 CLICK */
-async function extractAndGenerate(){
-  let f = pdfFile.files[0];
-  if(!f) return alert('Select a file first');
+/* PDF/TXT EXTRACTION */
+function extractFile(){
+let f=pdfFile.files[0];
+if(!f) return alert("Select a file");
 
-  try{
-    showUpdateStatus('Extracting text...', 'info');
-    let text = await extractTextFromFile(f);
-    extractedNotes = text;
-    pdfOutput.innerText = text.slice(0,2000);
-
-    showUpdateStatus('Generating questions...', 'info');
-    let sub = detectSubject(text, f.name);
-
-    let parsed = parseExistingQA(text);
-    let questions = parsed.length > 0? parsed : generateQuestionsFromText(text, sub, 20);
-
-    examData[sub] = examData[sub] || {questions: [], answers: []};
-    examData[sub].questions = examData[sub].questions.concat(questions);
-    examData[sub].answers = new Array(examData[sub].questions.length).fill(null);
-
-    showUpdateStatus(`Done! Added ${questions.length} questions to ${sub}`, 'success');
-    showQuestionCounts();
-
-  }catch(e){
-    pdfOutput.innerText = 'Error: ' + e.message;
-    showUpdateStatus('Error: ' + e.message, 'error');
-  }
+if(f.type==="text/plain"){
+  let reader = new FileReader();
+  reader.onload = e => {
+    extractedNotes = e.target.result;
+    pdfOutput.innerText = extractedNotes.slice(0,1000);
+  };
+  reader.readAsText(f);
+}else{
+  pdfOutput.innerText="PDF extraction requires a backend. Upload.txt files for now.";
+}
 }
 
-/* UPLOAD NOTES */
-async function uploadNotes(){
-  let f = notesFile.files[0];
-  if(!f) return alert('Select a file first');
-  let sub = notesSubject.value;
+/* UPLOAD NOTES & GENERATE QUESTIONS */
+function uploadNotes(){
+let f=notesFile.files[0];
+if(!f) return alert("Select a.txt file");
+let sub=notesSubject.value;
 
-  try{
-    let text = await extractTextFromFile(f);
-    extractedNotes = text;
-
-    let sections = splitBySubject(text);
-    let totalAdded = 0;
-
-    for(let s in sections){
-      let content = sections[s];
-      let parsed = parseExistingQA(content);
-      let questions = parsed.length > 0? parsed : generateQuestionsFromText(content, s, 20);
-
-      examData[s] = examData[s] || {questions: [], answers: []};
-      examData[s].questions = examData[s].questions.concat(questions);
-      examData[s].answers = new Array(examData[s].questions.length).fill(null);
-      totalAdded += questions.length;
-    }
-
-    notesOutput.innerText = `Done! Added ${totalAdded} questions across ${Object.keys(sections).length} subjects.`;
-    showQuestionCounts();
-    showUpdateStatus('Questions added!', 'success');
-  }catch(e){
-    notesOutput.innerText = 'Error: ' + e.message;
-  }
+let reader = new FileReader();
+reader.onload = e => {
+  extractedNotes = e.target.result;
+  generateQuestionsFromNotes(sub, extractedNotes);
+};
+reader.readAsText(f);
 }
 
-/* TEXT EXTRACTION HELPERS */
-async function extractTextFromFile(file){
-  const type = file.name.split('.').pop().toLowerCase();
+function generateQuestionsFromNotes(sub, text){
+let sentences = text.split(/[.!?]/).filter(s=>s.trim().length>20);
+let questions=[];
+for(let i=0;i<Math.min(20,sentences.length);i++){
+  let s=sentences[i].trim();
+  let words=s.split(" ");
+  if(words.length<5) continue;
 
-  if(type === 'txt') return await file.text();
-
-  if(type === 'pdf'){
-    await waitForLib('pdfjsLib');
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
-    let text = '';
-    for(let i=1; i<=pdf.numPages; i++){
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map(i=>i.str).join(' ') + '\n';
-    }
-    return text;
-  }
-
-  if(type === 'docx'){
-    await waitForLib('mammoth');
-    const arrayBuffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({arrayBuffer});
-    return result.value;
-  }
-
-  throw new Error('Use txt, pdf, or docx only');
-}
-
-function waitForLib(lib){
-  return new Promise((resolve)=>{
-    if(window[lib]) return resolve();
-    let check = setInterval(()=>{
-      if(window[lib]){clearInterval(check); resolve();}
-    }, 100);
+  let q=s.replace(words[Math.floor(words.length/2)],"_____");
+  questions.push({
+    q:q,
+    o:[words[0],words[1]||"Option B",words[2]||"Option C",words[3]||"Option D"],
+    a:0,
+    explain:`Based on your note: ${s}`,
+    whyWrong:"Other options are not mentioned in the note."
   });
 }
 
-function detectSubject(text, filename){
-  let combined = (filename + ' + text).toLowerCase();
-  for(let s of subjects){
-    if(combined.includes(s.toLowerCase())){
-      return s;
-    }
-  }
-  return 'General';
+while(questions.length<20){
+  questions.push({
+    q:`${sub} Q${questions.length+1} from your note`,
+    o:["Option A","Option B","Option C","Option D"],
+    a:0,
+    explain:"From uploaded note",
+    whyWrong:"Not in note"
+  });
 }
 
-function splitBySubject(text){
-  let result = {};
-  let currentSub = 'General';
-  let lines = text.split('\n');
+examData[sub]={
+  index:0,
+  questions:questions,
+  answers:new Array(20).fill(null)
+};
 
-  for(let line of lines){
-    line = line.trim();
-    let match = subjects.find(s => line.toLowerCase().includes(s.toLowerCase()));
-    if(match && line.length < 50){
-      currentSub = match;
-      result[currentSub] = result[currentSub] || '';
-    } else {
-      result[currentSub] = (result[currentSub] || '') + line + '\n';
-    }
-  }
-  return result;
-}
-
-function parseExistingQA(text){
-  let lines = text.split('\n').filter(l => l.trim());
-  let questions = [];
-  let currentQ = null;
-
-  for(let line of lines){
-    line = line.trim();
-    if(/^\d+[\.\)]/.test(line) || /^Q\d+/i.test(line)){
-      if(currentQ && currentQ.o.length >= 2) questions.push(currentQ);
-      currentQ = {q: line.replace(/^\d+[\.\)]\s*/, ''), o: [], a: 0, explain: 'From file', whyWrong: 'Not in file'};
-    }
-    else if(/^[A-D][\.\)]/.test(line) && currentQ){
-      let opt = line.replace(/^[A-D][\.\)]\s*/, '');
-      currentQ.o.push(opt);
-      if(line.includes('*') || line.toLowerCase().includes('correct')) currentQ.a = currentQ.o.length - 1;
-    }
-  }
-  if(currentQ && currentQ.o.length >= 2) questions.push(currentQ);
-  return questions;
-}
-
-function generateQuestionsFromText(text, sub, count){
-  let sentences = text.split(/[.!?]/).filter(s=>s.trim().length>25);
-  let questions=[];
-
-  for(let i=0;i<Math.min(count,sentences.length);i++){
-    let s=sentences[i].trim();
-    let words=s.split(" ").filter(w=>w.length>3);
-    if(words.length<5) continue;
-
-    let blankWord = words[Math.floor(words.length/2)];
-    let q=s.replace(blankWord,"_____");
-
-    questions.push({
-      q:q,
-      o:[blankWord, words[0]||"Option B", words[1]||"Option C", words[2]||"Option D"],
-      a:0,
-      explain:`Answer is ${blankWord}`,
-      whyWrong:"Others don't fit the sentence"
-    });
-  }
-
-  while(questions.length<count){
-    questions.push({
-      q:`${sub} Q${questions.length+1}`,
-      o:["Option A","Option B","Option C","Option D"],
-      a:0,
-      explain:"From uploaded note",
-      whyWrong:"Not mentioned"
-    });
-  }
-  return questions;
+notesOutput.innerText=`Generated 20 questions for ${sub} from your notes. Go to CBT Practice to test them.`;
 }
 
 /* QUESTION GENERATOR */
@@ -605,7 +479,7 @@ function generateQuestions(){
   alert(`Generated ${count} questions for ${sub}`);
 }
 
-/* UPDATE SYSTEM */
+/* UPDATE SYSTEM - NO LOCALSTORAGE */
 const UPDATE_SCRIPT_ID = "dynamicUpdate";
 
 function saveUpdate(){
@@ -614,6 +488,7 @@ function saveUpdate(){
   showUpdateStatus("Code ready. Click Apply Update.", "success");
 }
 
+function applyUpdate(){
   let code = codeBox.value.trim();
   if(!code) return showUpdateStatus("No code to apply.", "error");
 
@@ -629,8 +504,10 @@ function saveUpdate(){
 }
 
 function clearUpdate(){
+  let old = document.getElementById(UPDATE_SCRIPT_ID);
+  if(old) old.remove();
   codeBox.value = "";
-  showUpdateStatus("Textarea cleared.", "info");
+  showUpdateStatus("Update cleared.", "info");
 }
 
 function loadSavedUpdate(){}
@@ -642,7 +519,7 @@ updateStatus.style.background = type==="error"?"#dc2626":type==="success"?"#16a3
 setTimeout(()=>{updateStatus.style.display="none";}, 3000);
 }
 
-/* QUESTION BANK STATUS */
+/* QUESTION BANK STATUS - FIXED */
 function showQuestionCounts(){
   let box = document.getElementById("questionCounts");
   if(!box) return;
@@ -656,4 +533,4 @@ function showQuestionCounts(){
 }
 </script>
 </body>
-</html>
+  </html>
